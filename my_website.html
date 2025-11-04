@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>A Traveller's Book HIS final Project</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital,wght@0,400;1,400&family=Spectral:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --ink:#2a1f16;          
+      --parch:#efe4c9;         
+      --parch-ink:#3c2a1b;      
+      --parch-fiber:#eddab0;    
+      --leather:#5d3a1a;        
+      --leather-deep:#3e2512;   
+      --gilt:#c8a85b;         
+      --bg:#0e0d0c;       
+      --shadow: 0 30px 80px rgba(0,0,0,.55);
+      --book-w: 1200px;      
+      --book-h: 800px;       
+      --sheet-thick: 2px;       
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:radial-gradient(ellipse at 30% 20%, #d6cab1, #b19273 55%);
+      font-family:'Spectral', serif; display:grid; place-items:center; padding:40px 12px;
+    }
+
+    .wrap{ width:min(100%, calc(var(--book-w) + 320px)); }
+
+    .titlebar{ color:#e9e1d1; text-align:center; margin-bottom:18px; }
+    .titlebar h1{ font-family:'IM Fell English', serif; font-size:clamp(22px,3.6vw,34px); letter-spacing:.04em; margin:0; }
+    .titlebar p{ opacity:.85; margin:.35rem 0 0; font-size:14px }
+
+
+    .stage{ position:relative; height:var(--book-h); perspective:2000px; }
+
+    .table {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+      perspective-origin: center;
+    }
+    /* Spine */
+    .spine {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 26px;
+      height: 100%;
+      transform: translateX(-50%) translateZ(-5px); /* push it slightly back so pages flip over it */
+      z-index: 999; /* below flipping sheets but always visible */
+      background: linear-gradient(90deg, var(--leather-deep), var(--leather) 40%, var(--leather-deep) 60%, #24160b);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.06),
+                  inset 0 0 40px rgba(0,0,0,.6),
+                  0 20px 60px rgba(0,0,0,.5);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    /* Book boards (under pages) */
+    .board{ position:absolute; top:0; width:calc(var(--book-w)/2); height:100%; background:linear-gradient(145deg, #6e471f, #4a2c14);
+      border-radius: 8px; box-shadow: var(--shadow); }
+    .board.left{ right:50%; transform:translateZ(-1px); }
+    .board.right{ left:50%; transform:translateZ(-1px); }
+
+    /* Each sheet = one physical sheet that flips. Each has a front (right) & back (left) face. */
+    .sheet{ position:absolute; top:0; left:50%; width:calc(var(--book-w)/2); height:100%;
+      transform-origin:left center; transform-style:preserve-3d; cursor:grab; }
+    .sheet:active{ cursor:grabbing }
+    /* Default state: stacked on the right side (unflipped). Flipped rotates around the left edge (spine). */
+    .sheet{ transform: translateZ(0) rotateY(0deg); }
+    .sheet.flipped{ transform: translateZ(0) rotateY(-180deg); }
+    .sheet.anim{ transition: transform 700ms cubic-bezier(.2,.6,.05,1); }
+
+    /* Prevent see-through */
+    .page{ position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; overflow:hidden;
+      background:
+        radial-gradient( 200% 70% at 10% 10%, rgba(255,255,255,.35), rgba(255,255,255,0) 50%),
+        repeating-linear-gradient(0deg, rgba(0,0,0,.02), rgba(0,0,0,.02) 1px, transparent 1px, transparent 17px),
+        linear-gradient(180deg, var(--parch), var(--parch-fiber));
+      color:var(--parch-ink); border-radius:8px 0 0 8px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+    }
+
+    /* Right page (front face of sheet) sits to the right of spine */
+    .page.front{ transform: rotateY(0deg) translateZ(calc(var(--sheet-thick))); padding:28px 34px; }
+
+    /* Left page (back face) revealed when flipped */
+    .page.back{ transform: rotateY(180deg); border-radius: 0 8px 8px 0; padding:28px 34px; }
+
+
+    .page.front:before, .page.back:before{
+      content:""; position:absolute; top:0; bottom:0; width:26px; left:0;
+      background: linear-gradient(90deg, rgba(0,0,0,.20), rgba(0,0,0,0)); pointer-events:none;
+    }
+
+
+    .cover{ background: linear-gradient(145deg, #6a3f18, #3b210f);
+      color:#f3e8c8; border:2px solid #2b180c; 
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.05), 0 25px 80px rgba(0,0,0,.6);
+    }
+    .cover .frame{ position:absolute; inset:22px; border:3px double var(--gilt); border-radius:10px; }
+    .cover .label{ position:absolute; inset:22px; border-radius:10px; display:grid; place-items:center; }
+    .cover h2{ font-family:'IM Fell English', serif; font-size: clamp(26px,4vw,38px); letter-spacing:.04em; margin:0; text-align:center; }
+    .cover p{ margin:.25rem 0 0; opacity:.9; font-style:italic; text-align:center }
+
+    .source-list{ font-size:14px; line-height:1.5 }
+
+    .dropcap{ float:left; font-family:'IM Fell English',serif; font-size:54px; line-height:.8; padding:10px 12px 0 0; color:#3a2718 }
+    .entry h3{ font-family:'IM Fell English',serif; letter-spacing:.03em; margin:0 0 6px; font-size:20px }
+    .entry .meta{ font-style:italic; opacity:.75; margin-bottom:8px }
+    .entry p{ margin:.65rem 0; text-wrap:pretty }
+
+    /* Controls */
+    .controls{ display:flex; gap:10px; justify-content:center; margin-top:16px; }
+    .btn{ appearance:none; border:0; background:#2b2018; color:#f4ead3; padding:10px 14px; border-radius:8px; font-family:inherit; box-shadow: 0 8px 24px rgba(0,0,0,.35); cursor:pointer }
+    .btn:disabled{ opacity:.45; cursor:not-allowed }
+
+
+    .hotzone{ position:absolute; top:0; height:100%; width:22%; z-index:2000; }
+    .hotzone.left{ left:0; }
+    .hotzone.right{ right:0; }
+
+
+    .scale{ width:var(--book-w); height:var(--book-h); margin:0 auto; transform-origin:center top; }
+    @media (max-width: 980px){
+      .scale{ transform: scale(.9); }
+    }
+    @media (max-width: 860px){ .scale{ transform: scale(.8); } }
+    @media (max-width: 760px){ .scale{ transform: scale(.72); } }
+    @media (max-width: 680px){ .scale{ transform: scale(.64); } }
+    @media (max-width: 600px){ .scale{ transform: scale(.56); } }
+    .board.left {
+      right: 50%;
+      transform: translateZ(-1px);
+      background: linear-gradient(145deg, #6e471f, #4a2c14);
+    }
+
+
+    .board.right {
+      left: 50%;
+      transform: translateZ(-1px);
+      background: linear-gradient(145deg, #6e471f, #4a2c14);
+    }
+
+    body.cover-open .board.left {
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    body.back-cover-open .board.right {
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    body.book-open .spine {
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.4s ease;
+    }
+    .scrollbox {
+      height: 800px;              
+      overflow-y: auto;        
+      overflow-x: hidden;         
+      padding: 1rem;
+      background: transparent;
+    }
+    .scrollbox::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scrollbox::-webkit-scrollbar-thumb {
+      background: rgba(0,0,0,.3);
+      border-radius: 4px;
+    }
+    .scrollbox::-webkit-scrollbar-thumb:hover {
+      background: rgba(0,0,0,.5);
+    }
+    .page-scroll {
+      height: 100%;
+      overflow-y: auto;
+      padding-right: 6px; 
+    }
+
+    .desk-scene {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: var(--book-w);
+      height: var(--book-h);
+      transform: translate(-50%, -50%);
+      z-index: -1; /* behind the book */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Wooden desk below the book */
+    .desk-surface {
+      position: absolute;
+      top: 60%;
+      left: 50%;
+      width: 180%;
+      height: 160%;
+      transform: translate(-50%, -50%) rotateX(25deg);
+      transform-origin: center;
+      background:
+        radial-gradient(ellipse at center,
+          rgba(0,0,0,0.25) 0%, transparent 70%),
+        repeating-linear-gradient(
+          90deg,
+          #c5a06f 0 60px,
+          #b68a58 60px 120px
+        );
+      box-shadow:
+        inset 0 15px 25px rgba(0,0,0,0.25),
+        0 -30px 100px rgba(0,0,0,0.5);
+      border-top: 3px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      filter: brightness(0.95);
+      perspective: 1200px;
+    }
+    .desk-surface {
+      position: absolute;
+      top: 60%;
+      left: 50%;
+      width: 180%;
+      height: 160%;
+      transform: translate(-50%, -50%) rotateX(22deg);
+      transform-origin: center;
+      background:
+        radial-gradient(ellipse at 50% 20%, rgba(255,255,255,0.15) 0%, transparent 60%),
+        linear-gradient(180deg, #b89463 0%, #9b7349 60%, #6b4a2b 100%);
+      box-shadow:
+        inset 0 20px 40px rgba(255,255,255,0.05),
+        inset 0 -40px 60px rgba(0,0,0,0.3),
+        0 -40px 100px rgba(0,0,0,0.5);
+      border-top: 2px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      filter: brightness(0.97) contrast(1.05);
+    }
+
+    .coffee {
+      position: absolute;
+      right: -180px;   
+      top: 60%;      
+      width: 150px;
+      height: 150px;
+      background: radial-gradient(circle at 30% 30%, #f9f6f1 60%, #d0cbc3 100%);
+      border-radius: 50%;
+      box-shadow:
+        0 6px 18px rgba(0,0,0,0.4),
+        inset 0 -2px 6px rgba(0,0,0,0.25);
+      overflow: visible;
+      z-index: 2;
+    }
+
+    /* coffee liquid */
+    .coffee::before {
+      content: "";
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      right: 15px;
+      bottom: 15px;
+      background: radial-gradient(circle at 40% 40%, #5a2f0d, #3c1806);
+      border-radius: 50%;
+      box-shadow: inset 0 2px 8px rgba(255,255,255,0.15);
+      z-index: 3;
+    }
+
+    /* handle behind the cup */
+    .coffee::after {
+      content: "";
+      position: absolute;
+      right: -28px;          
+      top: 50%;
+      width: 55px;           
+      height: 38px;          
+      background: linear-gradient(145deg, #f9f6f1, #e0dbd4);
+      border-radius: 16px;   
+      transform: translateY(-50%) rotate(-4deg);
+      box-shadow:
+        inset 0 2px 4px rgba(255,255,255,0.4),
+        0 2px 6px rgba(0,0,0,0.25);
+      z-index: 1;            
+    }
+    .entry-img {
+      display: block;
+      width: 85%;
+      max-width: 480px;
+      margin: 1.5rem auto 1rem auto;
+      border-radius: 6px;
+      box-shadow:
+        0 6px 25px rgba(0,0,0,0.3),
+        inset 0 0 0 2px rgba(255,255,255,0.08);
+      object-fit: cover;
+      filter: sepia(0.3) contrast(1.1) brightness(0.95);
+      transition: transform 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    /* subtle hover “lift” effect for realism */
+    .entry-img:hover {
+      transform: scale(1.03) rotate(-1deg);
+      box-shadow:
+        0 10px 35px rgba(0,0,0,0.45),
+        inset 0 0 0 2px rgba(255,255,255,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="titlebar">
+      <h1>A Traveller's Log Book</h1>
+      <p>Use ← / → to turn the pages.</p>
+    </div>
+
+    <div class="stage">
+      <div class="scale">
+        <div class="table" id="table">
+          <div class="board left"></div>
+          <div class="board right"></div>
+          <div class="spine" aria-hidden="true"></div>
+
+          <!-- Sheet 0: Front cover (front) + Page 1 (Prologue) -->
+          <div class="sheet" data-idx="0" style="z-index:600">
+            <div class="page front cover">
+              <div class="frame"></div>
+              <div class="label">
+                <div>
+                  <h2>A Traveller's Log Book</h2>
+                  <p>Journeys through Europe & the Americas, Year of our lord 1766</p>
+                </div>
+              </div>
+            </div>
+            <div class="page back">
+              <article class="entry">
+                <h3>Prologue</h3>
+                <div class="meta">Purpose of the Journal</div>
+                <p><span class="dropcap">T</span>he purpose of this journal is to understand what people in the 18th century called the “Age of Reason.”We often learn what the Enlightenment accomplished, but never what it felt like to those living through it. This journal will argue that the Enlightenment itself was a single unifying cultural movement, whose geography would span most of the intellectual world. Furthermore, the journal will explore the details of the Enlightenment movement, how reason and progress appeared not just in revolutions but also in streets, theaters, and coffeehouses.</p>
+                <p>Through these pages, I follow an Englishman traveling across Europe and the Americas in search of the truth behind Enlightenment thought, meeting thinkers, soldiers, and everyday people. He will gradually realize that there isn’t such a thing as pure logic and perfect order, just people full of contradictions, passion, and hope. This journal is based on real events from primary sources, although some gaps are filled with creative liberty.</p>
+              </article>
+            </div>
+          </div>
+
+          <!-- Sheet 1: Entry I + Entry II -->
+          <div class="sheet" data-idx="1" style="z-index:590">
+            <div class="page front">
+              <div class = "scrollbox">
+                <article class="entry">
+                  <h3>Entry I — London’s Pantomimes</h3>
+                  <div class="meta">London, February 1728</div>
+                  <p><span class="dropcap">T</span>he theatre at Lincoln's Inn Fields was already filled with waves of chatter and noise. I’d shown up to see Mr Rich’s well known pantomime, but expected nothing more than clumsy stunts. Turned out I was terribly mistaken. When the curtains rose and a glowing egg started swelling right there, then split open to release a small Harlequin who stretched as tall as people gasped, even my skeptical heart jumped in joy. Kids yelled out laughing, troops pounded the floor, while richly adorned ladies gaped forward, stunned. It might not have been art, but it was certainly magic. The Swiss guy next to me, Saussure, was always jotting stuff down, blabbering about "the cleverest machine on London's theaters"; meanwhile, filled with utter amazement, I just kept clapping till my hands buzzed.</p>
+                  <p>When the curtain dropped, clapping blasted through the hall; people jumped up like they’d seen a miracle unfold right there. Yet the real show was waiting to begin: The fierce women fighters from Westminster. Into the arena stepped a pair, a towering Irishwoman and a nimble girl from England, both grinning like they already owned the night. Shouts exploded from the onlookers, some cheering wildly, others frozen in shock. Each hit brought ovations, while blood sparked a rain of coins. As they stitched the Irish girl’s cut right there, the mix of booze and sweat made me queasy, yet still, I couldn’t turn my gaze off it.</p>
+                  <p>Walking home, my mind wandered. How did those machines even run? No clue. Yet the barbaric nature of the spectacle knocked me sideways, swept me into the bloodshed, cheering when red blood sprayed. It clashed with my supposed beliefs of reason, restraint, and logic. torn between being hooked and feeling unsure. That itch lingered well past the last clap. This was when I suddenly saw that logic doesn't cover why people act the way they do. Yet I'm curious about what really drives them.</p>
+                  <img class="entry-img" src="images/ImageI.PNG">
+                  <p class="meta">Primary Source: Saussure, “A Foreign View of England,” 1728. Secondary Sources: O’Brien, “Harlequin Britain,” 1998; Sebastiani, “The Enlightenment Orangutan,” 2025.</p>
+                </article>
+              </div>
+            </div>
+            <div class="page back">
+              <div class = "scrollbox">
+                <article class="entry">
+                  <h3>Entry II — Riots of the Peasantry</h3>
+                  <div class="meta">Sweden, March 1766</div>
+                  <p><span class="dropcap">S</span>weden felt colder than I expected, not just the air, but also its people. I’d arrived looking for a place known for clarity up north. Yet what I found veered closer to stepping into one of London’s wildest pubs.</p>
+                  <p>A farmer called Hoffman had set the whole region aflame. Picked to represent his area in parliament, He was shunned due to his class and character, being labelled as "unfit" along with "troublesome." Feeling insulted, he pulled together six hundred peasants, then opted to head straight for Stockholm to force his voice through. Spotting the mob near Borås, most having one hand gripping pitchforks, and the other one clutching stale bread, a realization hit me: They seemed more lost than threatening, grumbling about fairness without quite grasping its meaning.</p>
+                  <p>The soldiers blocked their path almost right away. Hoffman, loud as ever when it suited him, dashed into the trees and crouched there, trembling like an animal caught in traps. His own people found him anyway, yanked him from cover, then turned him in without hesitation. Later, I saw him in Stockholm’s main square, pale, unsteady, muttering about how he’d “just wanted things even.” By week’s end, the king’s guards had him on a rope, while townsfolk clapped and shouted as though watching some staged show.</p>
+                  <p>That night, hunched near a flickering flame, my thoughts wouldn’t let me be. People say we’re in an era of logic, but I’ve seen men clash for reason without grasping its weight. Hoffman claimed he stood for justice, yet he died at the hands of his followers. Perhaps reason is just a coat hiding chaos and violence. The books I possess speak of progress along with virtue, yet out here in the freezing air, those ideas seem hollow. I once believed knowing things would keep everything balanced. These days, it doesn’t feel that way. When logic can’t calm emotion down, thinking isn’t really in charge.</p>
+                  <img class="entry-img" src="images/ImageII.PNG">
+                  <p class="meta">Primary Source: “Hoffman’s Revolt in Sweden,” The Annual Register, 1766. Secondary Source: Ellis, “Coffee-House Libraries in Mid-Eighteenth-Century London,” 2009.</p>
+                </article>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sheet 2: Entry III + Entry IV -->
+          <div class="sheet" data-idx="2" style="z-index:580">
+            <div class="page front">
+              <div class = "scrollbox">
+                <article class="entry">
+                  <h3>Entry III — Drums of Liberty at Schuylkill</h3>
+                  <div class="meta">Philadelphia, May 1778</div>
+                  <p><span class="dropcap">I</span> at last watched Americans celebrate their fresh bond with France, a sight so vivid even cold British souls might’ve blinked twice. Word of the pact hit General Washington’s camp; since then, the town hasn’t stopped roaring. Troops stood row after row near Schuylkill, rifles shining like polished glass, jackets scrubbed clean till they nearly glowed. Guns fired one after another, each blast chasing the last across ridges, sound piling on sound, storm calling to storm. After every burst came yells, “Long live the King of France!” and “Long live the American States!” tangled midair, half drill, half wonder.</p>
+                  <p>I hung around with the crowd, not belonging to either side, surprised by how tightly they kept order. Each salute hit perfectly, each step clean, but their expressions gave away a raw excitement drills couldn’t kill. This wasn’t showy pride; it felt like faith. For a second, I nearly wished I had their confidence, that sense that freedom walked right beside them. Later at the general’s table, officers raised glasses to France while talking about a world reshaped by liberty and logic. I grinned, even if some corner of me questioned whether a belief like that lasts under starvation or icy treks. Yet their bravery pulled at me somehow. They’d grabbed the claim to freedom, rule by the people, unchained lives, and made them smoke, fire, and shouts.</p>
+                  <p>When I walked away, a French officer grabbed my shoulder, shouting, “For reason and unity!” Those words floated through the hazy air, making me wonder if he was onto something, if thoughts could still triumph over power. Maybe this is what all the thinkers mean, not just logic in books, but having the courage to act on it, to believe that an idea, a pact, can stand taller than most kingdoms, or maybe, once chaos ensues, courage will wonder away.</p>
+                  <img class="entry-img" src="images/ImageIII.PNG">
+                  <p class="meta">Primary Source: “Report of the Celebration of French-American Treaty,” Pennsylvania Packet, 1778. Secondary Source: Almeida, “Constitutionalism in Burke’s Reflections as Critique of Enlightenment Ideas,” 2012.</p>
+                </article>
+              </div>
+            </div>
+            <div class="page back">
+              <div class = "scrollbox">
+                <article class="entry">
+                  <h3>Entry IV — The Barbarity of Liberty</h3>
+                  <div class="meta">Paris, August 1792</div>
+                  <p><span class="dropcap">P</span>aris is not the place I imagined back then. Each plaza, each road yells out "freedom," but the sound echoes weirdly through broken walls. People have stuck up what they name Liberty Trees - skinny poplars robbed of grace and beauty, their leaves dried up, with a red nightcap dangling from every peak instead. Supposedly, that’s the Hat of Freedom. To me, it seems more like a warning flag. Even the crosses sport ribbons fastened to Christ’s limb, almost like claiming Him as one of their own.</p>
+                  <p>The churches sit almost deserted these days. Here and there, elderly women huddle in dim corners praying, whereas down the aisle, military clerks scribble names of recruits. The metal bars that used to guard holy spaces are being turned into spear tips now. I wandered Versailles last evening; rooms where royalty once lived now only bounce back the sound of my shoes. The mirrors disappeared, yet the big canal's now cracked. Walls flake, while the dream of logic left the palace empty.</p>
+                  <p>Now everybody's got cockades pinned on, all made of plain cloth, identical, none with blue for the nobles, none in red for regular people, just this dull sign showing equality they didn’t ask for. Street corners are packed with stands hawking books, nearly all trash full of made-up tales about the dead Queen. Turns out freedom shouts the loudest through rumors. Still, people are dressed better than before with hoops of gold and vivid fabrics catching the sun’s glare. Even the kids sport shiny bits hanging from their ears. Like everybody’s trying to scream freedom loudly through flashiness. Hovering there, surrounded, a chill crept into my ribs. I used to believe being free meant floating easily. Now it burns stunning to watch, yet scorches whatever it brushes. </p>
+                  <img class="entry-img" src="images/ImageIV.PNG">
+                  <p class="meta">Primary Source: Richard Twiss, A Trip to Paris, 1792. Secondary Source: Field, “Mary Wollstonecraft’s Critique of Eighteenth-Century Girlhood,” 2011.</p>
+                </article>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sheet 3: Entry V + Back Cover -->
+          <div class="sheet" data-idx="3" style="z-index:570">
+            <div class="page front">
+              <div class = "scrollbox">
+                <article class="entry">
+                  <h3>Entry V — The Coffeehouse Enlightenment</h3>
+                  <div class="meta">London, 1773</div>
+                  <p><span class="dropcap">B</span>ack in London after being away for ages, the place still unchanged, but somehow felt different deep down. Those cafés? They are full of people, talk, and sharp jokes flying around. Stepped into one near Fleet Street today, pulled in by the heat and the smell of fresh roast. Once inside, traders, students, press guys, even scribblers were crammed together, voices clashing while someone cracked up nearby. It struck me that even in such tight spaces, more thinking gets done than inside fancy halls.</p>
+                  <p>Over at the biggest table, Dr. Samuel Johnson took up space, and people gathered close around him. Loud and steady, his tone cut through the noise. Right then, he was giving Langton an earful about handing property to sisters instead of some far-off cousin just 'cause he’s got Y chromosomes. “Three frumpy women!” Johnson roared, slamming his palm down so hard that teacups did a little dance. “Land this old? Should stay in the hands of men.”! Give your fresh cash to a pup if that’s your thing, yet dirt should stay where it fits! The place trembled with chuckles. Some didn’t buy his take, still they smirked anyway.</p>
+                  <p>Looking at him, I saw something real, not some ideal from a lecture or text, but raw truth in motion. This wasn’t just a talk, it was a mind meeting with old ways bumping against new, sense wrestling nonsense. Sure, Johnson backed outdated power lines, still the fact that people gathered freely, argued loudly over cheap drinks, was enlightened in many ways. Tonight, the coffeehouse turned into a spectacle; it made knowledge feel social.</p>
+                  <p>These days, I see chasing perfect logic as a form of naivety. Reason isn’t a single flame; it's many. One's either rage wildly or glow gently over time. One might flare into violence, another grows slowly through faith; some push reform, while others lead to calm talk. Perhaps what I really needed didn't come from order, but from the mess of it all.</p>                
+                  <img class="entry-img" src="images/ImageV.PNG">
+                  <p class="meta">Primary Source: James Boswell, Life of Johnson, 1799. Secondary Source: Ellis, “Coffee-House Libraries in Mid-Eighteenth-Century London,” 2009.</p>
+                </article>
+              </div>
+            </div>
+            <div class="page back cover">
+              <div class="frame"></div>
+              <div class="label">
+                <div class="source-list">
+                  <div class = "scrollbox">
+                  <h3 style="font-family:'IM Fell English',serif; margin:0 0 8px; letter-spacing:.03em">Sources & Notes</h3>
+                    <ul>
+                      <li>Almeida, Joseph. “Constitutionalism in Burke's Reflections as Critique of the Enlightenment Ideas of Originative Political Consent and the Social Compact.” <i>Catholic Social Science Review</i> 17 (2012): 197–219.</li>
+
+                      <li>Boswell, James. “Dr. Johnson’s Playfulness, 10 May 1773.” <i>Gale World History Online Collection</i>. Detroit: Gale, 2014.</li>
+
+                      <li>Ellis, Markman. “Coffee-House Libraries in Mid-Eighteenth-Century London.” <i>Library</i> 10, no. 1 (2009): 3–40.</li>
+
+                      <li>Field, Corinne. “Made Women of When They are Mere Children: Mary Wollstonecraft’s Critique of Eighteenth-Century Girlhood.” <i>Journal of the History of Childhood and Youth</i> 4, no. 2 (2011): 197–222.</li>
+
+                      <li>O’Brien, John. “Harlequin Britain: Eighteenth-Century Pantomime and the Cultural Location of Entertainment(s).” <i>Theatre Journal</i> 50, no. 4 (1998): 489–510.</li>
+
+                      <li>Saussure, César de. “Pantomimes and Gladiators, February 1728: A French Tourist in London.” <i>Gale World History Online Collection</i>. Detroit: Gale, 2014.</li>
+
+                      <li>Sebastiani, Silvia. “The Enlightenment Orangutan: In Search of the Missing Link.” <i>Annales: Histoire, Sciences Sociales</i> 80, no. 1 (2025): 47+.</li>
+
+                      <li>Twiss, Richard. “A Trip to Paris, July–August 1792.” <i>Gale World History Online Collection</i>. Detroit: Gale, 2014.</li>
+
+                      <li>Unknown. <i>Annual Register, Or a View of History, Politics, and Literature, of the Year 1766.</i> London: J. Dodsley, 1771.</li>
+
+                      <li>Unknown. “Excerpt of Report of the Celebration of French-American Treaty (1778).” <i>The American Revolution</i>. American Journey Online. Woodbridge, CT: Primary Source Media, 1999.</li>
+                      
+                      <li>Drury Lane Theatre, London - engaging for the Pantomime (engraving). Illustration. Encyclopædia Britannica ImageQuest, Accessed November 3, 2025. https://quest-eb-com.eznvcc.vccs.edu/images/108_2301731.</li>
+                      
+                      <li>Affray between soldiers and rope-makers, Boston, America, March 1770. Photograph. Encyclopædia Britannica ImageQuest, Accessed November 3, 2025. https://quest-eb-com.eznvcc.vccs.edu/images/113_1840204.</li>
+                    
+                      <li>Dance around Liberty Tree / Ink Drawing. Fine Art. Encyclopædia Britannica ImageQuest, Accessed November 3, 2025. https://quest-eb-com.eznvcc.vccs.edu/images/109_169760.</li>
+                    
+                      <li>Massacre of the prisoners of Orleans, Versailles, French Revolution, 9 September 1792 (engraving). Illustration. Encyclopædia Britannica ImageQuest, Accessed November 3, 2025. https://quest-eb-com.eznvcc.vccs.edu/images/108_2382032.</li>
+                    
+                      <li>COLONIAL COFFEE HOUSE. - A coffee house in colonial America, 18th century.. Fine Art. Encyclopædia Britannica ImageQuest, Accessed November 3, 2025. https://quest-eb-com.eznvcc.vccs.edu/images/140_1638185.</li>
+                    </ul>
+                  </div>
+                  <p style="margin-top:10px; opacity:.8">Finis — Anno 1703</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hotzone left" id="hzLeft"></div>
+          <div class="hotzone right" id="hzRight"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="prevBtn">← Back</button>
+      <button class="btn" id="nextBtn">Next →</button>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const sheets = Array.from(document.querySelectorAll('.sheet'));
+      const nextBtn = document.getElementById('nextBtn');
+      const prevBtn = document.getElementById('prevBtn');
+      const hzLeft = document.getElementById('hzLeft');
+      const hzRight = document.getElementById('hzRight');
+      let open = 0;
+
+      function applyState(animate = true) {
+        document.body.classList.toggle('cover-open', open === 0);
+        document.body.classList.toggle('back-cover-open', open === sheets.length);
+        sheets.forEach((sheet, i) => {
+          if (animate) sheet.classList.add("anim");
+          else sheet.classList.remove("anim");
+          if (i < open) { sheet.classList.add("flipped"); sheet.style.zIndex = 400 + i; }
+          else { sheet.classList.remove("flipped"); sheet.style.zIndex = 600 - i; }
+        });
+        prevBtn.disabled = open === 0;
+        nextBtn.disabled = open === sheets.length;
+      }
+
+      function next(){ if(open < sheets.length){ open++; applyState(true); } }
+      function prev(){ if(open > 0){ open--; applyState(true); } }
+
+      nextBtn.addEventListener('click', next);
+      prevBtn.addEventListener('click', prev);
+      hzRight.addEventListener('click', next);
+      hzLeft.addEventListener('click', prev);
+      window.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight')next(); if(e.key==='ArrowLeft')prev(); });
+      applyState(false);
+    })();
+  </script>
+  <div class="desk-scene">
+    <div class="desk-surface"></div>
+    <div class="coffee"></div>
+  </div>
+</body>
+</html>
